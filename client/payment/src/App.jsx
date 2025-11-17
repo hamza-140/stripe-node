@@ -6,6 +6,7 @@ import Success from "./pages/Success";
 import Cancel from "./pages/Cancel";
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
+import Subscription from "./pages/Subscription";
 function App() {
   return (
     <BrowserRouter>
@@ -18,6 +19,7 @@ function App() {
             <Route path="/" element={<Store />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/subscription" element={<Subscription />} />
             <Route path="/success" element={<Success />} />
             <Route path="/cancel" element={<Cancel />} />
           </Routes>

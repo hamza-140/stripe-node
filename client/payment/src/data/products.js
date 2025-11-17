@@ -18,7 +18,7 @@ const products = [
     name: 'Coffee Grinder',
     description: 'Compact manual grinder.',
     price: 4500,
-    image: 'https://www.seriouseats.com/thmb/83n5Sy9vgc8b1h41BtbapiLcA8w=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/sea-primary-coffee-grinders-oct-24-nsimpson-207-b439c1ef1a674697b2825604e5321d5c.jpeg'
+    image: 'https://www.fratellocoffee.com/cdn/shop/files/Coffee_grinder_comparaison_4.webp?v=1718132334'
   }
 ];
 

@@ -28,6 +28,16 @@ export default function Navbar() {
             Products
           </NavLink>
           <NavLink
+            to="/subscription"
+            className={({ isActive }) =>
+              `flex items-center gap-1 text-gray-600 hover:text-indigo-600 transition ${
+                isActive ? "font-semibold text-indigo-600" : ""
+              }`
+            }
+          >
+            Subscription
+          </NavLink>
+          <NavLink
             to="/cart"
             className="relative inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm"
           >
