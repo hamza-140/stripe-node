@@ -32,8 +32,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-// Explicitly handle preflight for all routes
-app.options("*", cors(corsOptions));
 
 // Ensure Express respects X-Forwarded-* headers on Railway for secure cookies
 app.set("trust proxy", 1);
