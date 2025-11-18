@@ -9,17 +9,34 @@ import webhookRoute from "./routes/webhook.routes.js";
 
 const app = express();
 
-// 🔥 IMPORTANT: Replace with your real frontend URL
+// 🔥 IMPORTANT: Configure allowed origins for CORS
+// Use comma-separated env var to allow multiple origins, e.g.:
+// ALLOWED_ORIGINS="http://localhost:5173,https://your-frontend.example.com"
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || FRONTEND_URL)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
-app.use(
-  cors({
-    origin: "*",
-    credentials: true, // REQUIRED for cookies
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+const corsOptions = {
+  origin(origin, callback) {
+    // Allow non-browser requests (no Origin) like curl/Postman
+    if (!origin) return callback(null, true);
+    const isAllowed = allowedOrigins.includes(origin);
+    return callback(isAllowed ? null : new Error("Not allowed by CORS"), isAllowed);
+  },
+  credentials: true, // REQUIRED for cookies
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+// Explicitly handle preflight for all routes
+app.options("*", cors(corsOptions));
+
+// Ensure Express respects X-Forwarded-* headers on Railway for secure cookies
+app.set("trust proxy", 1);
 
 // 🔥 1. Cookie Parser (runs before routes)
 app.use(cookieParser());
