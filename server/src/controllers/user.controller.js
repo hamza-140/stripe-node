@@ -25,6 +25,14 @@ export const register = async (req, res, next) => {
 
     const password_hash = await bcrypt.hash(password, 10);
 
+    // Create Stripe customer
+    let stripeCustomerId = null;
+    const customer = await stripe.customers.create({
+      email,
+      name: name || undefined
+    });
+    stripeCustomerId = customer.id;
+    console.log("Created Stripe customer:", stripeCustomerId);
     const [created] = await db
       .insert(users)
       .values({
