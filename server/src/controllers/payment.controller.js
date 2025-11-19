@@ -1,4 +1,7 @@
 import { stripe } from "../config/stripe.js";
+import { db } from "../db/index.js";
+import { users, subscriptions } from "../db/schema.js";
+import { eq } from "drizzle-orm";
 
 export const createPaymentIntent = async (req, res, next) => {
   try {
@@ -19,24 +22,17 @@ export const createPaymentIntent = async (req, res, next) => {
 export const createCheckoutSession = async (req, res, next) => {
   try {
     const { items, customer, type, priceId, quantity } = req.body;
-
     const clientUrl = process.env.CLIENT_URL;
-
     if (type === "subscription") {
       if (!priceId) return res.status(400).json({ error: "Missing priceId" });
 
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
+        customer: customer.stripe_customer_id || undefined,
         payment_method_types: ["card", "amazon_pay"],
         line_items: [{ price: priceId, quantity: quantity || 1 }],
         success_url: `${clientUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${clientUrl}/cancel?session_id={CHECKOUT_SESSION_ID}`,
-        customer_email: customer?.email,
-        metadata: {
-          customer_name: customer?.name || "",
-          customer_phone: customer?.phone || "",
-          customer_email: customer?.email || "",
-        },
       });
 
       return res.json({ url: session.url });
@@ -88,10 +84,10 @@ export const verifySession = async (req, res, next) => {
     }
 
     const email =
-      session.customer_email ||                        
-      session.customer_details?.email ||               
-      session.customer?.email ||                       
-      session.metadata?.customer_email ||              
+      session.customer_email ||
+      session.customer_details?.email ||
+      session.customer?.email ||
+      session.metadata?.customer_email ||
       null;
 
     res.json({
@@ -104,6 +100,84 @@ export const verifySession = async (req, res, next) => {
         line_items: session.line_items?.data || [],
       },
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createBillingPortalSession = async (req, res, next) => {
+  try {
+    const clientUrl = process.env.CLIENT_URL;
+    const userId = req.user?.id;
+
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+    const stripeCustomerId = user?.stripe_customer_id;
+    if (!stripeCustomerId)
+      return res.status(400).json({ error: "No Stripe customer id for user" });
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: clientUrl || undefined,
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const refreshSubscriptionData = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+    // Get user's subscription from DB
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user?.stripe_customer_id) {
+      return res.status(400).json({ error: "No Stripe customer ID found" });
+    }
+
+    // Get latest subscription from Stripe
+    const stripeSubscriptions = await stripe.subscriptions.list({
+      customer: user.stripe_customer_id,
+      status: 'all',
+      limit: 1
+    });
+
+    if (!stripeSubscriptions.data.length) {
+      return res.status(404).json({ error: "No subscriptions found" });
+    }
+
+    const latestSub = stripeSubscriptions.data[0];
+    
+    // Convert UNIX -> JS date (same as webhook)
+    const toDate = (unix) => (unix ? new Date(unix * 1000) : null);
+    
+    // Re-process the subscription with fresh mapping
+    const mappedSub = {
+      stripe_subscription_id: latestSub.id,
+      plan_id: latestSub.items?.data?.[0]?.price?.id,
+      price_cents: latestSub.items?.data?.[0]?.price?.unit_amount ?? 0,
+      currency: latestSub.items?.data?.[0]?.price?.currency || "usd",
+      status: latestSub.status || "unknown",
+      started_at: toDate(latestSub.start_date || latestSub.created),
+      current_period_start: toDate(latestSub.current_period_start),
+      current_period_end: toDate(latestSub.current_period_end),
+      cancel_at_period_end: Boolean(latestSub.cancel_at_period_end),
+      canceled_at: toDate(latestSub.canceled_at),
+      metadata: latestSub.metadata || {},
+    };
+    
+    // Update DB with fresh data
+    await db.update(subscriptions).set({
+      ...mappedSub,
+      updated_at: new Date()
+    }).where(eq(subscriptions.stripe_subscription_id, latestSub.id));
+
+    res.json({ success: true, subscription: mappedSub });
   } catch (err) {
     next(err);
   }

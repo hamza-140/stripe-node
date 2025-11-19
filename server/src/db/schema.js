@@ -7,44 +7,85 @@ import {
   timestamp,
   boolean,
   jsonb,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+//
 // USERS
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  email: varchar("email", { length: 255 }).notNull(),
-  name: varchar("name", { length: 255 }),
-  password_hash: text("password_hash").notNull(),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-});
+//
+export const users = pgTable(
+  "users",
+  {
+    id: serial("id").primaryKey(),
+    email: varchar("email", { length: 255 }).notNull(),
+    name: varchar("name", { length: 255 }),
+    password_hash: text("password_hash").notNull(),
 
+    // 🔥 IMPORTANT: user status (synced with subscription)
+    status: varchar("status", { length: 50 })
+      .notNull()
+      .default("inactive"), // inactive | active | trialing | past_due | canceled
+
+    stripe_customer_id: varchar("stripe_customer_id", { length: 255 }),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    emailUnique: uniqueIndex("users_email_unique").on(table.email),
+    stripeCustomerUnique: uniqueIndex("users_stripe_customer_id_unique").on(
+      table.stripe_customer_id
+    ),
+  })
+);
+
+//
 // SUBSCRIPTIONS (recurring)
-export const subscriptions = pgTable("subscriptions", {
-  id: serial("id").primaryKey(),
-  user_id: integer("user_id").notNull().references(() => users.id),
+//
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: serial("id").primaryKey(),
 
-  stripe_subscription_id: varchar("stripe_subscription_id", { length: 255 }),
-  plan_id: varchar("plan_id", { length: 100 }).notNull(),
-  status: varchar("status", { length: 50 }).notNull(),
+    user_id: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
 
-  price_cents: integer("price_cents").notNull(),
-  currency: varchar("currency", { length: 10 }).default("usd"),
+    stripe_subscription_id: varchar("stripe_subscription_id", { length: 255 }),
 
-  started_at: timestamp("started_at").defaultNow().notNull(),
-  current_period_start: timestamp("current_period_start"),
-  current_period_end: timestamp("current_period_end"),
+    plan_id: varchar("plan_id", { length: 100 }).notNull(),
+    status: varchar("status", { length: 50 }).notNull(), // active | trialing | canceled | etc
 
-  cancel_at_period_end: boolean("cancel_at_period_end").default(false),
-  canceled_at: timestamp("canceled_at"),
-  metadata: jsonb("metadata").default({}),
+    price_cents: integer("price_cents").notNull(),
+    currency: varchar("currency", { length: 10 }).default("usd"),
 
-  created_at: timestamp("created_at").defaultNow().notNull(),
-});
+    started_at: timestamp("started_at").defaultNow().notNull(),
+    current_period_start: timestamp("current_period_start"),
+    current_period_end: timestamp("current_period_end"),
 
+    cancel_at_period_end: boolean("cancel_at_period_end").default(false),
+    canceled_at: timestamp("canceled_at"),
+
+    metadata: jsonb("metadata").default({}),
+
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    stripeSubUnique: uniqueIndex(
+      "subscriptions_stripe_subscription_id_unique"
+    ).on(table.stripe_subscription_id),
+  })
+);
+
+//
 // ONE-TIME PURCHASES
+//
 export const one_time_purchases = pgTable("one_time_purchases", {
   id: serial("id").primaryKey(),
-  user_id: integer("user_id").notNull().references(() => users.id),
+
+  user_id: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
 
   product_id: varchar("product_id", { length: 255 }).notNull(),
   amount_cents: integer("amount_cents").notNull(),

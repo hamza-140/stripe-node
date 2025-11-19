@@ -8,6 +8,13 @@
       "when": 1763413398700,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1763551658632,
+      "tag": "0001_black_silver_sable",
+      "breakpoints": true
     }
   ]
 }
