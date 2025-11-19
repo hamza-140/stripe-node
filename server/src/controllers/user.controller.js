@@ -31,7 +31,7 @@ export const register = async (req, res, next) => {
         email,
         name,
         password_hash,
-        stripe_customer_id: "",
+        stripe_customer_id: null,
         status: "inactive"
       })
       .returning();
@@ -50,8 +50,7 @@ export const register = async (req, res, next) => {
         id: created.id,
         email: created.email,
         name: created.name,
-        status: created.status,
-        stripe_customer_id: created.stripe_customer_id,
+        status: created.status
       },
     });
   } catch (err) {
